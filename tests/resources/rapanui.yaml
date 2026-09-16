@@ -1,0 +1,6 @@
+---
+# Spago
+module: Rapanui
+---
+# Css
+src: rapanui.scss
