@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::error::Error;
 use std::fs;
+use std::process::Command;
 use yaml_rust2::{Yaml, YamlLoader};
 
 #[derive(Debug, Clone, Parser)]
@@ -16,18 +17,25 @@ struct Args {
     yaml: String,
 }
 
-#[derive(Debug)]
-struct Spago {
-    pkg: String,
+mod spagom {
+    use std::error::Error;
+    use yaml_rust2::Yaml;
+
+    #[derive(Debug)]
+    pub struct Spago {
+        pub pkg: String,
+    }
+    pub fn parse(doc: &Yaml) -> Result<Spago, Box<dyn Error>> {
+        let result = Spago {
+            pkg: String::from("Demo"),
+        };
+        Ok(result)
+    }
 }
 
 #[derive(Debug)]
 struct Config {
-    spago: Spago,
-}
-
-fn parse_spago(doc: &Yaml) -> Result<(), Box<dyn Error>> {
-    Ok(())
+    spago: spagom::Spago,
 }
 
 fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
@@ -36,9 +44,12 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
     let docs = YamlLoader::load_from_str(&yaml_content)?;
     let doc = &docs[0];
 
-    let spago = Spago {
+    /*
+    let spago = spago::Spago {
         pkg: String::from("reports"),
     };
+    */
+    let spago = spagom::parse(doc)?;
 
     let result = Config { spago: spago };
 
@@ -60,6 +71,14 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
+
+    // Run a command inside a specific directory without changing your Rust app's global state
+    Command::new("spago")
+        .arg("build")
+        .arg("--package")
+        .arg("report-app")
+        .current_dir("/Users/zeus/Projects/PhotoAppMVC/Purescript")
+        .status()?;
 
     Ok(())
 }
