@@ -1,0 +1,17 @@
+---
+# Config
+pkg: report-app
+ps-home: /home/rcs/opt/klaxton/PhotoAppMVC/Purescript
+stem: report
+java-resources: /home/rcs/opt/klaxton/PhotoAppMVC/src/main/resources
+---
+# Spago
+module: ReportMain
+---
+# Css
+scss-home: /home/rcs/opt/klaxton/PhotoAppMVC/sass-src
+---
+# Thymeleaf
+tpl-path: /home/rcs/opt/klaxton/PhotoAppMVC/Purescript/report-app/tpl
+tpl: index.html.tpl
+tpl-target: /home/rcs/opt/klaxton/PhotoAppMVC/src/main/resources/templates/report
