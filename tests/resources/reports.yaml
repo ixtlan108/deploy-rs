@@ -1,0 +1,3 @@
+---
+module: report-app
+ps-home: /home/rcs/opt/klaxton/PhotoAppMVC/Purescript
