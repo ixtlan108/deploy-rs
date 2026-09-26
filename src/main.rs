@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::error::Error;
 use std::fs;
+use std::marker::PhantomData;
 use yaml_rust2::YamlLoader;
 
 use md5::Digest;
@@ -20,13 +21,21 @@ fn calc_md5(path: &str) -> Result<Digest, Box<dyn Error>> {
 #[command(author, version, about)]
 /// Deployment Spago and Css
 struct Args {
-    /// Mac Os
-    #[arg(short, long, default_value_t = false)]
-    macos: bool,
-
     /// Yaml Project File
-    #[arg(long, required(true))]
+    #[arg(index = 1)]
     yaml: String,
+
+    /// Spago
+    #[arg(short, long, default_value_t = false)]
+    spago: bool,
+
+    /// Css
+    #[arg(short, long, default_value_t = false)]
+    css: bool,
+
+    /// Janet
+    #[arg(short, long, default_value_t = false)]
+    janet: bool,
 }
 
 mod css {}
@@ -41,45 +50,82 @@ struct Module(String);
 pub struct PsHome(String);
 
 #[derive(Debug)]
-struct Config {
+pub struct JavaResourceHome(String);
+
+#[derive(Debug)]
+pub struct Stem(String);
+
+#[derive(Debug)]
+pub struct Janet;
+
+#[derive(Debug)]
+pub struct Java;
+
+#[derive(Debug)]
+struct Config<State = Java> {
     pkg: Pkg,
     ps_home: PsHome,
+    stem: Stem,
+    java_res_home: JavaResourceHome,
     spago: spagom::Spago,
+    state: PhantomData<State>,
 }
 
+impl Config {
+    pub fn new(
+        is_java: bool,
+        pkg: Pkg,
+        ps_home: PsHome,
+        stem: Stem,
+        java_res_home: JavaResourceHome,
+        spago: spagom::Spago,
+    ) -> Self {
+        Config {
+            pkg: pkg,
+            ps_home: ps_home,
+            stem: stem,
+            java_res_home: java_res_home,
+            spago: spago,
+            state: if is_java { Java } else { Janet }, //Default::default(),
+        }
+    }
+}
 mod spagom {
-    use super::{Config, Module, Pkg, PsHome};
+    use super::{Config, Module};
     use std::error::Error;
     use std::process::Command;
     use yaml_rust2::Yaml;
 
     #[derive(Debug)]
-    pub struct Out(String);
-    impl Out {
-        pub fn as_str(&self) -> &str {
-            &self.0
-        }
-    }
-
-    // impl PsHome {
-    //     pub fn as_str(&self) -> &str {
-    //         &self.0
-    //     }
-    // }
-
-    #[derive(Debug)]
     pub struct Spago {
         pub module: Module,
-        pub out: Out,
     }
     pub fn parse(doc: &Yaml) -> Result<Spago, Box<dyn Error>> {
         let module = doc["module"].as_str().unwrap();
-        let out = doc["out"].as_str().unwrap();
         let result = Spago {
             module: Module(String::from(module)),
-            out: Out(String::from(out)),
         };
         Ok(result)
+    }
+    fn out_file(cfg: &Config) -> String {
+        format!("{}/{}/dist/{}.js", &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0)
+    }
+
+    pub fn bundle(cfg: &Config) -> Result<(), Box<dyn Error>> {
+        let s_cfg = &cfg.spago;
+        let out = out_file(cfg);
+        Command::new("spago")
+            .arg("bundle")
+            .arg("--quiet")
+            .arg("--package")
+            .arg(&cfg.pkg.0)
+            .arg("--module")
+            .arg(&s_cfg.module.0)
+            .arg("--outfile")
+            .arg(&out)
+            .current_dir(&cfg.ps_home.0)
+            .status()?;
+        Ok(())
     }
     /*
     pub fn build(cfg: &Spago, ps_home: &PsHome) -> Result<(), Box<dyn Error>> {
@@ -92,37 +138,29 @@ mod spagom {
         Ok(())
     }
     */
-    pub fn bundle(cfg: &Config) -> Result<(), Box<dyn Error>> {
-        let s_cfg = &cfg.spago;
-        Command::new("spago")
-            .arg("bundle")
-            .arg("--quiet")
-            .arg("--package")
-            .arg(&cfg.pkg.0)
-            .arg("--module")
-            .arg(&s_cfg.module.0)
-            .arg("--outfile")
-            .arg(&s_cfg.out.0)
-            .current_dir(&cfg.ps_home.0)
-            .status()?;
-        Ok(())
-    }
 }
 
-fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
+fn parse_yaml(yaml: &str) -> Result<Config<Java>, Box<dyn Error>> {
     let yaml_content = fs::read_to_string(yaml).expect("Failed to read yaml file");
 
     let docs = YamlLoader::load_from_str(&yaml_content)?;
-    let spago_doc = &docs[0];
+    let cfg_doc = &docs[0];
+    let spago_doc = &docs[1];
 
     let spago = spagom::parse(spago_doc)?;
-    let ps_home = spago_doc["ps-home"].as_str().unwrap();
 
-    let pkg = spago_doc["pkg"].as_str().unwrap();
+    let ps_home = cfg_doc["ps-home"].as_str().unwrap();
+    let pkg = cfg_doc["pkg"].as_str().unwrap();
+    let stem = cfg_doc["stem"].as_str().unwrap();
+    let java_res = cfg_doc["java-resources"].as_str().unwrap();
+
     let result = Config {
         pkg: Pkg(String::from(pkg)),
         ps_home: PsHome(String::from(ps_home)),
+        stem: Stem(String::from(stem)),
+        java_res_home: JavaResourceHome(String::from(java_res)),
         spago: spago,
+        state: PhantomData::<Java>,
     };
 
     Ok(result)

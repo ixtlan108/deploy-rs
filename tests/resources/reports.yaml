@@ -1,3 +1,11 @@
 ---
-module: report-app
+# Config
+pkg: report-app
 ps-home: /home/rcs/opt/klaxton/PhotoAppMVC/Purescript
+stem: report
+java-resources: /home/rcs/opt/klaxton/PhotoAppMVC/src
+---
+# Spago
+module: ReportMain
+---
+# Css
