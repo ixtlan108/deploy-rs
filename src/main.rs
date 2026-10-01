@@ -46,6 +46,9 @@ pub struct PsHome(String);
 pub struct JavaResourceHome(String);
 
 #[derive(Debug)]
+pub struct JanetResourceHome(String);
+
+#[derive(Debug)]
 pub struct Stem(String);
 
 #[derive(Debug)]
@@ -66,6 +69,7 @@ struct Config {
     ps_home: PsHome,
     stem: Stem,
     java_res_home: JavaResourceHome,
+    janet_res_home: JanetResourceHome,
     spago: spagom::Spago,
     tpl: Tpl,
     tpl_path: TplPath,
@@ -79,6 +83,7 @@ impl Config {
         ps_home: PsHome,
         stem: Stem,
         java_res_home: JavaResourceHome,
+        janet_res_home: JanetResourceHome,
         spago: spagom::Spago,
         tpl: Tpl,
         tpl_path: TplPath,
@@ -90,6 +95,7 @@ impl Config {
             ps_home: ps_home,
             stem: stem,
             java_res_home: java_res_home,
+            janet_res_home: janet_res_home,
             spago: spago,
             tpl: tpl,
             tpl_path: tpl_path,
@@ -295,7 +301,7 @@ mod thymeleaf {
         )
     }
 
-    pub fn css_target_file_name(cfg: &Config, md5: &str) -> String {
+    fn css_target_file_name(cfg: &Config, md5: &str) -> String {
         let stem = &cfg.stem.0;
         format!(
             "{}/static/css/{}/{}-{}.js",
@@ -341,6 +347,34 @@ mod thymeleaf {
         Ok(())
     }
 }
+mod janet {
+    use super::{Args, Config, css, spagom};
+    use std::error::Error;
+    use std::fs;
+
+    fn js_target_file_name(cfg: &Config) -> String {
+        let stem = &cfg.stem.0;
+        format!("{}/{}.js", &cfg.janet_res_home.0, stem)
+    }
+
+    fn css_target_file_name(cfg: &Config) -> String {
+        let stem = &cfg.stem.0;
+        format!("{}/{}.css", &cfg.janet_res_home.0, stem)
+    }
+
+    pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
+        if args.janet == true {
+            let spago_out = spagom::out_file(cfg);
+            let target_js = js_target_file_name(cfg);
+            let _ = fs::copy(&spago_out, &target_js);
+
+            let css_out = css::out_file(cfg);
+            let target_css = css_target_file_name(cfg);
+            let _ = fs::copy(&css_out, &target_css);
+        }
+        Ok(())
+    }
+}
 
 fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
     let yaml_content = fs::read_to_string(yaml).expect("Failed to read yaml file");
@@ -357,6 +391,7 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
     let pkg = cfg_doc["pkg"].as_str().unwrap();
     let stem = cfg_doc["stem"].as_str().unwrap();
     let java_res = cfg_doc["java-resources"].as_str().unwrap();
+    let janet_res = cfg_doc["janet-resources"].as_str().unwrap();
     let tpl = tpl_doc["tpl"].as_str().unwrap();
     let tpl_path = tpl_doc["tpl-path"].as_str().unwrap();
     let tpl_target = tpl_doc["tpl-target"].as_str().unwrap();
@@ -367,6 +402,7 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
         PsHome(String::from(ps_home)),
         Stem(String::from(stem)),
         JavaResourceHome(String::from(java_res)),
+        JanetResourceHome(String::from(janet_res)),
         spago,
         Tpl(String::from(tpl)),
         TplPath(String::from(tpl_path)),
@@ -382,8 +418,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let config = parse_yaml(&args.yaml)?;
     spagom::run(&config, &args)?;
-    thymeleaf::run(&config, &args)?;
     css::run(&config, &args)?;
+    thymeleaf::run(&config, &args)?;
+    janet::run(&config, &args)?;
 
     // Run a command inside a specific directory without changing your Rust app's global state
     /*
@@ -458,6 +495,9 @@ mod tests {
             Stem(String::from("report")),
             JavaResourceHome(String::from(
                 "/home/rcs/opt/klaxton/PhotoAppMVC/src/main/resources",
+            )),
+            JanetResourceHome(String::from(
+                "/home/rcs/opt/klaxton/PhotoAppMVC/janet/appwindow3/public",
             )),
             spago,
             Tpl(String::from("tpl")),
