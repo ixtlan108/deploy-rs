@@ -4,6 +4,20 @@ use std::fs;
 //use std::marker::PhantomData;
 use yaml_rust2::YamlLoader;
 
+// #[derive(Debug, Clone, Subcommand)]
+// enum Commands {
+//     /// Command to add a file
+//     Add {
+//         /// The file name to add
+//         name: String,
+//     },
+//     /// Command to remove a file
+//     Remove {
+//         /// The file name to remove
+//         name: String,
+//     },
+// }
+
 #[derive(Debug, Clone, Parser)]
 #[command(author, version, about)]
 /// Deployment Spago and Css
@@ -31,6 +45,14 @@ struct Args {
     /// Janet
     #[arg(short, long, default_value_t = false)]
     janet: bool,
+
+    /// Parcel
+    #[arg(short, long, default_value_t = false)]
+    parcel: bool,
+
+    /// Production
+    #[arg(long, default_value_t = false)]
+    prod: bool,
 }
 
 #[derive(Debug)]
@@ -62,6 +84,9 @@ pub struct TplTarget(String);
 
 #[derive(Debug)]
 pub struct ScssHome(String);
+
+//#[derive(Debug)]
+//jpub struct Parcel(String);
 
 #[derive(Debug)]
 struct Config {
@@ -111,8 +136,12 @@ mod spagom {
     use std::process::Command;
     use yaml_rust2::Yaml;
 
-    pub fn out_file(cfg: &Config) -> String {
-        format!("{}/{}/dist/{}.js", &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0)
+    pub fn out_file(cfg: &Config, is_prod: bool) -> String {
+        if is_prod == true {
+            format!("{}/{}/prod/{}.js", &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0)
+        } else {
+            format!("{}/{}/dist/{}.js", &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0)
+        }
     }
 
     #[derive(Debug)]
@@ -129,7 +158,7 @@ mod spagom {
 
     pub fn bundle(cfg: &Config) -> Result<(), Box<dyn Error>> {
         let s_cfg = &cfg.spago;
-        let out = out_file(cfg);
+        let out = out_file(cfg, false);
         Command::new("spago")
             .arg("bundle")
             .arg("--quiet")
@@ -315,7 +344,7 @@ mod thymeleaf {
 
             env.set_loader(minijinja::path_loader(&cfg.tpl_path.0));
 
-            let spago_out = spagom::out_file(cfg);
+            let spago_out = spagom::out_file(cfg, args.prod);
             let css_out = css::out_file(cfg);
 
             let md5_js = calc_md5(&spago_out)?;
@@ -337,12 +366,6 @@ mod thymeleaf {
             let target_css = css_target_file_name(cfg, &md5_js);
 
             let _ = fs::copy(&css_out, &target_css);
-
-            //template.render_captured_to(context!(name => "World"), index_html)?;
-            // println!(
-            //     "{}",
-            //     template.render(context! { md5_js => &md5_js }).unwrap()
-            // );
         }
         Ok(())
     }
@@ -364,7 +387,7 @@ mod janet {
 
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
         if args.janet == true {
-            let spago_out = spagom::out_file(cfg);
+            let spago_out = spagom::out_file(cfg, args.prod);
             let target_js = js_target_file_name(cfg);
             let _ = fs::copy(&spago_out, &target_js);
 
@@ -374,6 +397,40 @@ mod janet {
         }
         Ok(())
     }
+}
+
+mod parcel {
+    use super::{Args, Config};
+    use std::error::Error;
+    use std::process::Command;
+
+    pub fn ps_dist_file_name(cfg: &Config) -> String {
+        format!("{}/dist/{}.js", &cfg.pkg.0, &cfg.stem.0)
+    }
+
+    pub fn parcel_dist_dir(cfg: &Config) -> String {
+        format!("{}/prod/", &cfg.pkg.0)
+    }
+
+    pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
+        if args.parcel == true {
+            let ps_dist = ps_dist_file_name(&cfg);
+            let parcel_dist = parcel_dist_dir(&cfg);
+
+            Command::new("npx")
+                .arg("parcel")
+                .arg("build")
+                .arg(&ps_dist)
+                .arg("--dist-dir")
+                .arg(&parcel_dist)
+                .current_dir(&cfg.ps_home.0)
+                .status()?;
+        }
+
+        Ok(())
+    }
+
+    // "npx parcel build report-app/dist/report.js --dist-dir report-app/dist/"
 }
 
 fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
@@ -392,6 +449,7 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
     let stem = cfg_doc["stem"].as_str().unwrap();
     let java_res = cfg_doc["java-resources"].as_str().unwrap();
     let janet_res = cfg_doc["janet-resources"].as_str().unwrap();
+    //let parcel_dist = cfg_doc["parcel-dist-dir"].as_str().unwrap();
     let tpl = tpl_doc["tpl"].as_str().unwrap();
     let tpl_path = tpl_doc["tpl-path"].as_str().unwrap();
     let tpl_target = tpl_doc["tpl-target"].as_str().unwrap();
@@ -418,6 +476,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let config = parse_yaml(&args.yaml)?;
     spagom::run(&config, &args)?;
+    parcel::run(&config, &args)?;
     css::run(&config, &args)?;
     thymeleaf::run(&config, &args)?;
     janet::run(&config, &args)?;
@@ -504,9 +563,58 @@ mod tests {
             TplPath(String::from("tpl_path")),
             TplTarget(String::from("tpl_target")),
             ScssHome(String::from("scss_home")),
+            //Parcel(String::from("parcel")),
         )
     }
 }
+/*
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(name = "myapp", about = "A simple CLI")]
+struct Cli {
+    /// Global option available for all subcommands
+    #[arg(long, global = true)]
+    verbose: bool,
+
+    /// The subcommand to execute
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Command to add a file
+    Add {
+        /// The file name to add
+        name: String,
+    },
+    /// Command to remove a file
+    Remove {
+        /// The file name to remove
+        name: String,
+    },
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    if cli.verbose {
+        eprintln!("Running in verbose mode");
+    }
+
+    match cli.command {
+        Commands::Add { name } => println!("Adding file: {}", name),
+        Commands::Remove { name } => println!("Removing file: {}", name),
+    }
+}
+Key Concepts
+Required vs Optional: By default, if the subcommand field is Commands, a subcommand is required. To make it optional, use Option<Commands>.
+Global Arguments: Use #[arg(global = true)] on parent struct arguments to make them available to all subcommands.
+Argument Types: Subcommand variants can be tuple structs (e.g., Add(String)) or named structs (e.g., Add { name: String }). Named structs allow for optional arguments and flags more easily.
+Derive Feature: Ensure you enable the derive feature in Cargo.toml: clap = { version = "4", features = ["derive"] }.
+ */
+
 /*
 let line = "import global/colors";
 
