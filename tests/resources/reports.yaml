@@ -10,7 +10,8 @@ janet-resources: /home/rcs/opt/klaxton/PhotoAppMVC/janet/appwindow3/public
 module: ReportMain
 ---
 # Css
-scss-home: /home/rcs/opt/klaxton/PhotoAppMVC/sass-src
+css-home: /home/rcs/opt/klaxton/PhotoAppMVC/sass-src
+css-main: main.css
 ---
 # Thymeleaf
 tpl-path: /home/rcs/opt/klaxton/PhotoAppMVC/Purescript/report-app/tpl

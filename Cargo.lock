@@ -165,7 +165,7 @@ checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
 
 [[package]]
 name = "deploy-rs"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",

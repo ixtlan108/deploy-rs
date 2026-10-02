@@ -83,7 +83,10 @@ pub struct TplPath(String);
 pub struct TplTarget(String);
 
 #[derive(Debug)]
-pub struct ScssHome(String);
+pub struct CssHome(String);
+
+#[derive(Debug)]
+pub struct CssMain(String);
 
 //#[derive(Debug)]
 //jpub struct Parcel(String);
@@ -99,7 +102,8 @@ struct Config {
     tpl: Tpl,
     tpl_path: TplPath,
     tpl_target: TplTarget,
-    scss_home: ScssHome,
+    css_home: CssHome,
+    css_main: CssMain,
 }
 
 impl Config {
@@ -113,7 +117,8 @@ impl Config {
         tpl: Tpl,
         tpl_path: TplPath,
         tpl_target: TplTarget,
-        scss_home: ScssHome,
+        css_home: CssHome,
+        css_main: CssMain,
     ) -> Self {
         Config {
             pkg: pkg,
@@ -125,7 +130,8 @@ impl Config {
             tpl: tpl,
             tpl_path: tpl_path,
             tpl_target: tpl_target,
-            scss_home: scss_home,
+            css_home: css_home,
+            css_main: css_main,
         }
     }
 }
@@ -202,17 +208,16 @@ mod css {
         format!("{}/{}/dist/{}.css", &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0)
     }
 
-    fn scss_file_name(cfg: &Config) -> String {
-        let stem = &cfg.stem.0;
-        format!("{}/{}/{}.scss", &cfg.scss_home.0, stem, stem)
+    pub fn css_file_name(cfg: &Config) -> String {
+        format!("{}/{}/{}", &cfg.css_home.0, &cfg.stem.0, &cfg.css_main.0)
     }
 
     fn import_file_name(cfg: &Config, file_name: &str) -> String {
-        format!("{}/{}.css", &cfg.scss_home.0, file_name)
+        format!("{}/{}.css", &cfg.css_home.0, file_name)
     }
 
     fn local_import_file_name(cfg: &Config, file_name: &str) -> String {
-        format!("{}/{}/{}.css", &cfg.scss_home.0, &cfg.stem.0, file_name)
+        format!("{}/{}/{}.css", &cfg.css_home.0, &cfg.stem.0, file_name)
     }
     // fn first_word_is_import(s: &str) -> bool {
     //     s.split_whitespace().next() == Some("import")
@@ -225,6 +230,7 @@ mod css {
     ) -> Result<(), Box<dyn Error>> {
         let file_name = yaml_line.split_whitespace().nth(1).unwrap();
         let file_name = import_file_name(cfg, file_name);
+        println!("{}", file_name);
         writeln!(f, "/* {} */", file_name)?;
         let import = File::open(file_name)?;
         let lines: Vec<String> = BufReader::new(import)
@@ -245,6 +251,7 @@ mod css {
     ) -> Result<(), Box<dyn Error>> {
         let file_name = yaml_line.split_whitespace().nth(1).unwrap();
         let file_name = local_import_file_name(cfg, file_name);
+        println!("{}", file_name);
         writeln!(f, "/* {} */", file_name)?;
         let import = File::open(file_name)?;
         let lines: Vec<String> = BufReader::new(import)
@@ -259,7 +266,7 @@ mod css {
     }
 
     fn generate_css(cfg: &Config) -> Result<(), Box<dyn Error>> {
-        let scss = scss_file_name(cfg);
+        let scss = css_file_name(cfg);
         println!("scss file: {}", &scss);
         let scss = File::open(&scss)?; //.expect("file not found");
 
@@ -271,7 +278,7 @@ mod css {
         let mut out = File::create(&out_file(cfg))?;
 
         for line in &scss_lines {
-            println!("{}", line);
+            //println!("{}", line);
             if line.trim().starts_with("import") {
                 handle_import(&mut out, &line, cfg)?;
             } else if line.trim().starts_with("local-import") {
@@ -318,7 +325,7 @@ mod thymeleaf {
         // let short = format!("{:x}", digest)[..8].to_string();
     }
 
-    fn tpl_target_file_name(cfg: &Config) -> String {
+    pub fn tpl_target_file_name(cfg: &Config) -> String {
         format!("{}/index.html", &cfg.tpl_target.0)
     }
 
@@ -330,10 +337,10 @@ mod thymeleaf {
         )
     }
 
-    fn css_target_file_name(cfg: &Config, md5: &str) -> String {
+    pub fn css_target_file_name(cfg: &Config, md5: &str) -> String {
         let stem = &cfg.stem.0;
         format!(
-            "{}/static/css/{}/{}-{}.js",
+            "{}/static/css/{}/{}-{}.css",
             &cfg.java_res_home.0, stem, stem, md5
         )
     }
@@ -453,7 +460,8 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
     let tpl = tpl_doc["tpl"].as_str().unwrap();
     let tpl_path = tpl_doc["tpl-path"].as_str().unwrap();
     let tpl_target = tpl_doc["tpl-target"].as_str().unwrap();
-    let scss_home = css_doc["scss-home"].as_str().unwrap();
+    let css_home = css_doc["css-home"].as_str().unwrap();
+    let css_main = css_doc["css-main"].as_str().unwrap();
 
     let result = Config::new(
         Pkg(String::from(pkg)),
@@ -465,7 +473,8 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
         Tpl(String::from(tpl)),
         TplPath(String::from(tpl_path)),
         TplTarget(String::from(tpl_target)),
-        ScssHome(String::from(scss_home)),
+        CssHome(String::from(css_home)),
+        CssMain(String::from(css_main)),
     );
 
     Ok(result)
@@ -498,6 +507,39 @@ fn main() -> Result<(), Box<dyn Error>> {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_css_target_file_name() -> Result<(), Box<dyn Error>> {
+        let cfg = test_config();
+        let result = thymeleaf::css_target_file_name(&cfg, "987654ab");
+        assert_eq!(
+            "/home/rcs/opt/klaxton/PhotoAppMVC/src/main/resources/static/css/report/report-987654ab.css",
+            result
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tpl_target_file_name() -> Result<(), Box<dyn Error>> {
+        let cfg = test_config();
+        let result = thymeleaf::tpl_target_file_name(&cfg);
+        assert_eq!(
+            "/home/rcs/opt/klaxton/PhotoAppMVC/src/main/resources/templates/report/index.html",
+            result
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_css_file_name() -> Result<(), Box<dyn Error>> {
+        let cfg = test_config();
+        let result = css::css_file_name(&cfg);
+        assert_eq!(
+            "/home/rcs/opt/klaxton/PhotoAppMVC/sass-src/report/main.css",
+            result
+        );
+        Ok(())
+    }
 
     #[test]
     fn test_js_target_file_name() -> Result<(), Box<dyn Error>> {
@@ -538,9 +580,10 @@ mod tests {
 
         assert_eq!(
             "/home/rcs/opt/klaxton/PhotoAppMVC/sass-src",
-            config.scss_home.0
+            config.css_home.0
         );
 
+        assert_eq!("main.css", config.css_main.0);
         Ok(())
     }
 
@@ -559,10 +602,15 @@ mod tests {
                 "/home/rcs/opt/klaxton/PhotoAppMVC/janet/appwindow3/public",
             )),
             spago,
-            Tpl(String::from("tpl")),
-            TplPath(String::from("tpl_path")),
-            TplTarget(String::from("tpl_target")),
-            ScssHome(String::from("scss_home")),
+            Tpl(String::from("index.html.tpl")),
+            TplPath(String::from(
+                "/home/rcs/opt/klaxton/PhotoAppMVC/Purescript/report-app/tpl",
+            )),
+            TplTarget(String::from(
+                "/home/rcs/opt/klaxton/PhotoAppMVC/src/main/resources/templates/report",
+            )),
+            CssHome(String::from("/home/rcs/opt/klaxton/PhotoAppMVC/sass-src")),
+            CssMain(String::from("main.css")),
             //Parcel(String::from("parcel")),
         )
     }
