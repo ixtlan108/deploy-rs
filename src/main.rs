@@ -88,11 +88,15 @@ pub struct CssHome(String);
 #[derive(Debug)]
 pub struct CssMain(String);
 
+#[derive(Debug)]
+pub struct Base(String);
+
 //#[derive(Debug)]
 //jpub struct Parcel(String);
 
 #[derive(Debug)]
 struct Config {
+    base: Base,
     pkg: Pkg,
     ps_home: PsHome,
     stem: Stem,
@@ -108,6 +112,7 @@ struct Config {
 
 impl Config {
     pub fn new(
+        base: Base,
         pkg: Pkg,
         ps_home: PsHome,
         stem: Stem,
@@ -121,6 +126,7 @@ impl Config {
         css_main: CssMain,
     ) -> Self {
         Config {
+            base: base,
             pkg: pkg,
             ps_home: ps_home,
             stem: stem,
@@ -144,9 +150,15 @@ mod spagom {
 
     pub fn out_file(cfg: &Config, is_prod: bool) -> String {
         if is_prod == true {
-            format!("{}/{}/prod/{}.js", &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0)
+            format!(
+                "{}/{}/{}/prod/{}.js",
+                &cfg.base.0, &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0
+            )
         } else {
-            format!("{}/{}/dist/{}.js", &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0)
+            format!(
+                "{}/{}/{}/dist/{}.js",
+                &cfg.base.0, &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0
+            )
         }
     }
 
@@ -205,19 +217,28 @@ mod css {
     use std::io::{BufRead, BufReader};
 
     pub fn out_file(cfg: &Config) -> String {
-        format!("{}/{}/dist/{}.css", &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0)
+        format!(
+            "{}/{}/{}/dist/{}.css",
+            &cfg.base.0, &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0
+        )
     }
 
     pub fn css_file_name(cfg: &Config) -> String {
-        format!("{}/{}/{}", &cfg.css_home.0, &cfg.stem.0, &cfg.css_main.0)
+        format!(
+            "{}/{}/{}/{}",
+            &cfg.base.0, &cfg.css_home.0, &cfg.stem.0, &cfg.css_main.0
+        )
     }
 
     fn import_file_name(cfg: &Config, file_name: &str) -> String {
-        format!("{}/{}.css", &cfg.css_home.0, file_name)
+        format!("{}/{}/{}.css", &cfg.base.0, &cfg.css_home.0, file_name)
     }
 
     fn local_import_file_name(cfg: &Config, file_name: &str) -> String {
-        format!("{}/{}/{}.css", &cfg.css_home.0, &cfg.stem.0, file_name)
+        format!(
+            "{}/{}/{}/{}.css",
+            &cfg.base.0, &cfg.css_home.0, &cfg.stem.0, file_name
+        )
     }
     // fn first_word_is_import(s: &str) -> bool {
     //     s.split_whitespace().next() == Some("import")
@@ -326,22 +347,22 @@ mod thymeleaf {
     }
 
     pub fn tpl_target_file_name(cfg: &Config) -> String {
-        format!("{}/index.html", &cfg.tpl_target.0)
+        format!("{}/{}/index.html", &cfg.base.0, &cfg.tpl_target.0)
     }
 
     pub fn js_target_file_name(cfg: &Config, md5: &str) -> String {
         let stem = &cfg.stem.0;
         format!(
-            "{}/static/js/{}/{}-{}.js",
-            &cfg.java_res_home.0, stem, stem, md5
+            "{}/{}/static/js/{}/{}-{}.js",
+            &cfg.base.0, &cfg.java_res_home.0, stem, stem, md5
         )
     }
 
     pub fn css_target_file_name(cfg: &Config, md5: &str) -> String {
         let stem = &cfg.stem.0;
         format!(
-            "{}/static/css/{}/{}-{}.css",
-            &cfg.java_res_home.0, stem, stem, md5
+            "{}/{}/static/css/{}/{}-{}.css",
+            &cfg.base.0, &cfg.java_res_home.0, stem, stem, md5
         )
     }
 
@@ -451,6 +472,7 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
 
     let spago = spagom::parse(spago_doc)?;
 
+    let base = cfg_doc["base"].as_str().unwrap();
     let ps_home = cfg_doc["ps-home"].as_str().unwrap();
     let pkg = cfg_doc["pkg"].as_str().unwrap();
     let stem = cfg_doc["stem"].as_str().unwrap();
@@ -464,6 +486,7 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
     let css_main = css_doc["css-main"].as_str().unwrap();
 
     let result = Config::new(
+        Base(String::from(base)),
         Pkg(String::from(pkg)),
         PsHome(String::from(ps_home)),
         Stem(String::from(stem)),
@@ -557,31 +580,16 @@ mod tests {
         let config = parse_yaml("tests/resources/reports.yaml")?;
         let spago = config.spago;
 
-        assert_eq!(
-            "/home/rcs/opt/klaxton/PhotoAppMVC/src/main/resources",
-            config.java_res_home.0
-        );
+        assert_eq!("src/main/resources", config.java_res_home.0);
         assert_eq!("report-app", config.pkg.0);
         assert_eq!("report", config.stem.0);
         assert_eq!("ReportMain", spago.module.0);
-        assert_eq!(
-            "/home/rcs/opt/klaxton/PhotoAppMVC/Purescript",
-            config.ps_home.0
-        );
+        assert_eq!("Purescript", config.ps_home.0);
         assert_eq!("index.html.tpl", config.tpl.0);
-        assert_eq!(
-            "/home/rcs/opt/klaxton/PhotoAppMVC/Purescript/report-app/tpl",
-            config.tpl_path.0
-        );
-        assert_eq!(
-            "/home/rcs/opt/klaxton/PhotoAppMVC/src/main/resources/templates/report",
-            config.tpl_target.0
-        );
+        assert_eq!("Purescript/report-app/tpl", config.tpl_path.0);
+        assert_eq!("src/main/resources/templates/report", config.tpl_target.0);
 
-        assert_eq!(
-            "/home/rcs/opt/klaxton/PhotoAppMVC/sass-src",
-            config.css_home.0
-        );
+        assert_eq!("sass-src", config.css_home.0);
 
         assert_eq!("main.css", config.css_main.0);
         Ok(())
@@ -592,24 +600,17 @@ mod tests {
             module: Module(String::from("module")),
         };
         Config::new(
+            Base(String::from("/home/rcs/opt/klaxton/PhotoAppMVC")),
             Pkg(String::from("pkg")),
             PsHome(String::from("ps_home")),
             Stem(String::from("report")),
-            JavaResourceHome(String::from(
-                "/home/rcs/opt/klaxton/PhotoAppMVC/src/main/resources",
-            )),
-            JanetResourceHome(String::from(
-                "/home/rcs/opt/klaxton/PhotoAppMVC/janet/appwindow3/public",
-            )),
+            JavaResourceHome(String::from("src/main/resources")),
+            JanetResourceHome(String::from("janet/appwindow3/public")),
             spago,
             Tpl(String::from("index.html.tpl")),
-            TplPath(String::from(
-                "/home/rcs/opt/klaxton/PhotoAppMVC/Purescript/report-app/tpl",
-            )),
-            TplTarget(String::from(
-                "/home/rcs/opt/klaxton/PhotoAppMVC/src/main/resources/templates/report",
-            )),
-            CssHome(String::from("/home/rcs/opt/klaxton/PhotoAppMVC/sass-src")),
+            TplPath(String::from("Purescript/report-app/tpl")),
+            TplTarget(String::from("src/main/resources/templates/report")),
+            CssHome(String::from("sass-src")),
             CssMain(String::from("main.css")),
             //Parcel(String::from("parcel")),
         )
