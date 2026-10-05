@@ -1,7 +1,9 @@
 use clap::Parser;
 use std::error::Error;
+use std::fmt;
 use std::fs;
 //use std::marker::PhantomData;
+
 use yaml_rust2::YamlLoader;
 
 // #[derive(Debug, Clone, Subcommand)]
@@ -142,8 +144,29 @@ impl Config {
     }
 }
 
+impl fmt::Display for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Config:\n\tbase: {:<30}\n\tpkg: {:<30}\n\tps_home: {:<30}\n\tstem: {:<30}\n\tjava_res_home: {:<30}\n\tjanet_res_home: {:<30}\n\ttpl: {:<30}\n\ttpl_path: {:<30}\n\ttpl_target: {:<30}\n\tcss_home: {:<30}\n\tcss_main: {:<30}",
+            &self.base.0,
+            &self.pkg.0,
+            &self.ps_home.0,
+            &self.stem.0,
+            &self.java_res_home.0,
+            &self.janet_res_home.0,
+            &self.tpl.0,
+            &self.tpl_path.0,
+            &self.tpl_target.0,
+            &self.css_home.0,
+            &self.css_main.0
+        )
+    }
+}
+
 mod spagom {
     use super::{Args, Config, Module};
+    use log::info;
     use std::error::Error;
     use std::process::Command;
     use yaml_rust2::Yaml;
@@ -174,9 +197,14 @@ mod spagom {
         Ok(result)
     }
 
+    pub fn purescript_home(cfg: &Config) -> String {
+        format!("{}/{}", &cfg.base.0, &cfg.ps_home.0)
+    }
+
     pub fn bundle(cfg: &Config) -> Result<(), Box<dyn Error>> {
         let s_cfg = &cfg.spago;
         let out = out_file(cfg, false);
+        let psh = purescript_home(cfg);
         Command::new("spago")
             .arg("bundle")
             .arg("--quiet")
@@ -186,23 +214,26 @@ mod spagom {
             .arg(&s_cfg.module.0)
             .arg("--outfile")
             .arg(&out)
-            .current_dir(&cfg.ps_home.0)
+            .current_dir(&psh)
             .status()?;
         Ok(())
     }
     pub fn build(cfg: &Config) -> Result<(), Box<dyn Error>> {
+        let psh = purescript_home(cfg);
         Command::new("spago")
             .arg("build")
             .arg("--package")
             .arg(&cfg.pkg.0)
-            .current_dir(&cfg.ps_home.0)
+            .current_dir(&psh)
             .status()?;
         Ok(())
     }
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
         if args.build == true {
+            info!("Running spago build...");
             build(cfg)?;
         } else if args.spago == true {
+            info!("Running spago bundle...");
             bundle(cfg)?;
         }
         Ok(())
@@ -211,6 +242,7 @@ mod spagom {
 
 mod css {
     use super::{Args, Config};
+    use log::info;
     use std::error::Error;
     use std::fs::File;
     use std::io::Write;
@@ -319,6 +351,7 @@ mod css {
     }
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
         if args.css == true {
+            info!("Running css...");
             generate_css(cfg)?;
         }
         Ok(())
@@ -328,6 +361,7 @@ mod css {
 mod thymeleaf {
     use super::{Args, Config, css, spagom};
     //use md5::Digest;
+    use log::info;
     use std::error::Error;
     use std::fs;
     use std::fs::File;
@@ -366,11 +400,18 @@ mod thymeleaf {
         )
     }
 
+    fn tpl_path(cfg: &Config) -> String {
+        format!("{}/{}", &cfg.base.0, &cfg.tpl_path.0)
+    }
+
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
         if args.thymeleaf == true {
             let mut env = Environment::new();
 
-            env.set_loader(minijinja::path_loader(&cfg.tpl_path.0));
+            let tp = tpl_path(cfg);
+
+            info!("Templates {}", &tp);
+            env.set_loader(minijinja::path_loader(&tp));
 
             let spago_out = spagom::out_file(cfg, args.prod);
             let css_out = css::out_file(cfg);
@@ -389,9 +430,13 @@ mod thymeleaf {
 
             let target_js = js_target_file_name(cfg, &md5_js);
 
+            info!("Copy {}\nto {}", &spago_out, &target_js);
+
             let _ = fs::copy(&spago_out, &target_js);
 
-            let target_css = css_target_file_name(cfg, &md5_js);
+            let target_css = css_target_file_name(cfg, &md5_css);
+
+            info!("Copy {}\nto {}", &css_out, &target_css);
 
             let _ = fs::copy(&css_out, &target_css);
         }
@@ -400,27 +445,32 @@ mod thymeleaf {
 }
 mod janet {
     use super::{Args, Config, css, spagom};
+    use log::info;
     use std::error::Error;
     use std::fs;
 
     fn js_target_file_name(cfg: &Config) -> String {
         let stem = &cfg.stem.0;
-        format!("{}/{}.js", &cfg.janet_res_home.0, stem)
+        format!("{}/{}/{}.js", &cfg.base.0, &cfg.janet_res_home.0, stem)
     }
 
     fn css_target_file_name(cfg: &Config) -> String {
         let stem = &cfg.stem.0;
-        format!("{}/{}.css", &cfg.janet_res_home.0, stem)
+        format!("{}/{}/{}.css", &cfg.base.0, &cfg.janet_res_home.0, stem)
     }
 
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
         if args.janet == true {
             let spago_out = spagom::out_file(cfg, args.prod);
             let target_js = js_target_file_name(cfg);
+
+            info!("Copy {}\nto {}", &spago_out, &target_js);
             let _ = fs::copy(&spago_out, &target_js);
 
             let css_out = css::out_file(cfg);
             let target_css = css_target_file_name(cfg);
+
+            info!("Copy {}\nto {}", &css_out, &target_css);
             let _ = fs::copy(&css_out, &target_css);
         }
         Ok(())
@@ -428,7 +478,8 @@ mod janet {
 }
 
 mod parcel {
-    use super::{Args, Config};
+    use super::{Args, Config, spagom};
+    use log::info;
     use std::error::Error;
     use std::process::Command;
 
@@ -442,16 +493,18 @@ mod parcel {
 
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
         if args.parcel == true {
-            let ps_dist = ps_dist_file_name(&cfg);
-            let parcel_dist = parcel_dist_dir(&cfg);
+            let ps_dist = ps_dist_file_name(cfg);
+            let parcel_dist = parcel_dist_dir(cfg);
+            let psh = spagom::purescript_home(cfg);
 
+            info!("Running Parcel...");
             Command::new("npx")
                 .arg("parcel")
                 .arg("build")
                 .arg(&ps_dist)
                 .arg("--dist-dir")
                 .arg(&parcel_dist)
-                .current_dir(&cfg.ps_home.0)
+                .current_dir(&psh)
                 .status()?;
         }
 
@@ -504,9 +557,14 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let args = Args::parse();
 
     let config = parse_yaml(&args.yaml)?;
+
+    println!("{}", &config);
+
     spagom::run(&config, &args)?;
     parcel::run(&config, &args)?;
     css::run(&config, &args)?;
