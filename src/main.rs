@@ -330,14 +330,24 @@ mod css {
 
         let mut out = File::create(&out_file(cfg))?;
 
+        let mut imports_done: bool = false;
+
         for line in &scss_lines {
+            let trimmed_line = line.trim();
             //println!("{}", line);
-            if line.trim().starts_with("import") {
-                handle_import(&mut out, &line, cfg)?;
-            } else if line.trim().starts_with("local-import") {
-                handle_local_import(&mut out, &line, cfg)?;
+            if imports_done == false {
+                if trimmed_line.contains("IMPORTS_BEGIN") {
+                    continue;
+                } else if trimmed_line.contains("IMPORTS_END") {
+                    imports_done = true;
+                    continue;
+                } else if trimmed_line.starts_with("import") {
+                    handle_import(&mut out, &trimmed_line, cfg)?;
+                } else if trimmed_line.starts_with("local-import") {
+                    handle_local_import(&mut out, &trimmed_line, cfg)?;
+                }
             } else {
-                writeln!(out, "{}", line)?;
+                writeln!(out, "{}", trimmed_line)?;
             }
         }
 
