@@ -185,6 +185,14 @@ mod spagom {
         }
     }
 
+    pub fn bundle_out_file(cfg: &Config, is_prod: bool) -> String {
+        if is_prod == true {
+            format!("prod/{}.js", &cfg.stem.0)
+        } else {
+            format!("dist/{}.js", &cfg.stem.0)
+        }
+    }
+
     #[derive(Debug)]
     pub struct Spago {
         pub module: Module,
@@ -203,7 +211,7 @@ mod spagom {
 
     pub fn bundle(cfg: &Config) -> Result<(), Box<dyn Error>> {
         let s_cfg = &cfg.spago;
-        let out = out_file(cfg, false);
+        let out = bundle_out_file(cfg, false);
         let psh = purescript_home(cfg);
         Command::new("spago")
             .arg("bundle")
