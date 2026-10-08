@@ -1,4 +1,5 @@
 use clap::Parser;
+use log::info;
 use std::error::Error;
 use std::fmt;
 use std::fs;
@@ -55,6 +56,10 @@ struct Args {
     /// Production
     #[arg(long, default_value_t = false)]
     prod: bool,
+
+    /// Multi-projects
+    #[arg(short, long, default_value_t = false)]
+    multi: bool,
 }
 
 #[derive(Debug)]
@@ -93,8 +98,20 @@ pub struct CssMain(String);
 #[derive(Debug)]
 pub struct Base(String);
 
-//#[derive(Debug)]
-//jpub struct Parcel(String);
+#[derive(Debug)]
+struct MultiConfig {
+    base: Base,
+    projects: Vec<String>,
+}
+
+impl MultiConfig {
+    pub fn new(base: Base, projects: Vec<String>) -> Self {
+        MultiConfig {
+            base: base,
+            projects: projects,
+        }
+    }
+}
 
 #[derive(Debug)]
 struct Config {
@@ -549,7 +566,6 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
     let stem = cfg_doc["stem"].as_str().unwrap();
     let java_res = cfg_doc["java-resources"].as_str().unwrap();
     let janet_res = cfg_doc["janet-resources"].as_str().unwrap();
-    //let parcel_dist = cfg_doc["parcel-dist-dir"].as_str().unwrap();
     let tpl = tpl_doc["tpl"].as_str().unwrap();
     let tpl_path = tpl_doc["tpl-path"].as_str().unwrap();
     let tpl_target = tpl_doc["tpl-target"].as_str().unwrap();
@@ -574,12 +590,45 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
     Ok(result)
 }
 
+fn parse_multi_yaml(yaml: &str) -> Result<MultiConfig, Box<dyn Error>> {
+    let yaml_content = fs::read_to_string(yaml).expect("Failed to read yaml file");
+    let docs = YamlLoader::load_from_str(&yaml_content)?;
+
+    let doc = &docs[0];
+
+    let base = doc["base"].as_str().unwrap();
+    let projects = doc["projects"].as_vec().unwrap();
+
+    let mut proj_vec: Vec<String> = Vec::new();
+
+    for project in projects {
+        let proj_str = project.as_str().unwrap();
+        info!("PROJECT: {}", proj_str);
+        proj_vec.push(String::from(proj_str));
+    }
+
+    let result = MultiConfig::new(Base(String::from(base)), proj_vec);
+
+    Ok(result)
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let args = Args::parse();
 
-    let config = parse_yaml(&args.yaml)?;
+    if args.multi == true {
+        run_multi_project(&args)?;
+    } else {
+        run_single_project(&args, &args.yaml)?;
+    }
+
+    Ok(())
+}
+
+fn run_single_project(args: &Args, yaml_str: &str) -> Result<(), Box<dyn Error>> {
+    //let config = parse_yaml(&args.yaml)?;
+    let config = parse_yaml(yaml_str)?;
 
     println!("{}", &config);
 
@@ -588,16 +637,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     css::run(&config, &args)?;
     thymeleaf::run(&config, &args)?;
     janet::run(&config, &args)?;
+    Ok(())
+}
 
-    // Run a command inside a specific directory without changing your Rust app's global state
-    /*
-    Command::new("spago")
-        .arg("build")
-        .arg("--package")
-        .arg("report-app")
-        .current_dir("/Users/zeus/Projects/PhotoAppMVC/Purescript")
-        .status()?;
-        */
+fn run_multi_project(args: &Args) -> Result<(), Box<dyn Error>> {
+    let config = parse_multi_yaml(&args.yaml)?;
+
+    for project in config.projects {
+        let base_project = format!("{}/{}", config.base.0, &project);
+        info!("Processing project: {}", &base_project);
+        run_single_project(args, &base_project)?;
+    }
 
     Ok(())
 }
@@ -652,7 +702,25 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_input() -> Result<(), Box<dyn Error>> {
+    fn test_parse_multi_yaml() -> Result<(), Box<dyn Error>> {
+        let config = parse_multi_yaml("tests/resources/deploy-multi.yaml")?;
+
+        assert_eq!(
+            "/home/rcs/opt/klaxton/PhotoAppMVC/Purescript",
+            config.base.0
+        );
+
+        assert_eq!(3, config.projects.len());
+
+        assert_eq!("report-app/deploy.yaml", config.projects.get(0).unwrap());
+        assert_eq!("camera-app/deploy.yaml", config.projects.get(1).unwrap());
+        assert_eq!("generator-app/deploy.yaml", config.projects.get(2).unwrap());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_yaml() -> Result<(), Box<dyn Error>> {
         let config = parse_yaml("tests/resources/reports.yaml")?;
         let spago = config.spago;
 
