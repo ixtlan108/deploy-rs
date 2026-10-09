@@ -106,10 +106,7 @@ struct MultiConfig {
 
 impl MultiConfig {
     pub fn new(base: Base, projects: Vec<String>) -> Self {
-        MultiConfig {
-            base: base,
-            projects: projects,
-        }
+        MultiConfig { base, projects }
     }
 }
 
@@ -145,18 +142,18 @@ impl Config {
         css_main: CssMain,
     ) -> Self {
         Config {
-            base: base,
-            pkg: pkg,
-            ps_home: ps_home,
-            stem: stem,
-            java_res_home: java_res_home,
-            janet_res_home: janet_res_home,
-            spago: spago,
-            tpl: tpl,
-            tpl_path: tpl_path,
-            tpl_target: tpl_target,
-            css_home: css_home,
-            css_main: css_main,
+            base,
+            pkg,
+            ps_home,
+            stem,
+            java_res_home,
+            janet_res_home,
+            spago,
+            tpl,
+            tpl_path,
+            tpl_target,
+            css_home,
+            css_main,
         }
     }
 }
@@ -166,17 +163,17 @@ impl fmt::Display for Config {
         write!(
             f,
             "Config:\n\tbase: {:<30}\n\tpkg: {:<30}\n\tps_home: {:<30}\n\tstem: {:<30}\n\tjava_res_home: {:<30}\n\tjanet_res_home: {:<30}\n\ttpl: {:<30}\n\ttpl_path: {:<30}\n\ttpl_target: {:<30}\n\tcss_home: {:<30}\n\tcss_main: {:<30}",
-            &self.base.0,
-            &self.pkg.0,
-            &self.ps_home.0,
-            &self.stem.0,
-            &self.java_res_home.0,
-            &self.janet_res_home.0,
-            &self.tpl.0,
-            &self.tpl_path.0,
-            &self.tpl_target.0,
-            &self.css_home.0,
-            &self.css_main.0
+            self.base.0,
+            self.pkg.0,
+            self.ps_home.0,
+            self.stem.0,
+            self.java_res_home.0,
+            self.janet_res_home.0,
+            self.tpl.0,
+            self.tpl_path.0,
+            self.tpl_target.0,
+            self.css_home.0,
+            self.css_main.0
         )
     }
 }
@@ -189,24 +186,24 @@ mod spagom {
     use yaml_rust2::Yaml;
 
     pub fn out_file(cfg: &Config, is_prod: bool) -> String {
-        if is_prod == true {
+        if is_prod {
             format!(
                 "{}/{}/{}/prod/{}.js",
-                &cfg.base.0, &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0
+                cfg.base.0, cfg.ps_home.0, cfg.pkg.0, cfg.stem.0
             )
         } else {
             format!(
                 "{}/{}/{}/dist/{}.js",
-                &cfg.base.0, &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0
+                cfg.base.0, cfg.ps_home.0, cfg.pkg.0, cfg.stem.0
             )
         }
     }
 
     pub fn bundle_out_file(cfg: &Config, is_prod: bool) -> String {
-        if is_prod == true {
-            format!("prod/{}.js", &cfg.stem.0)
+        if is_prod {
+            format!("prod/{}.js", cfg.stem.0)
         } else {
-            format!("dist/{}.js", &cfg.stem.0)
+            format!("dist/{}.js", cfg.stem.0)
         }
     }
 
@@ -223,7 +220,7 @@ mod spagom {
     }
 
     pub fn purescript_home(cfg: &Config) -> String {
-        format!("{}/{}", &cfg.base.0, &cfg.ps_home.0)
+        format!("{}/{}", cfg.base.0, cfg.ps_home.0)
     }
 
     pub fn bundle(cfg: &Config) -> Result<(), Box<dyn Error>> {
@@ -254,10 +251,10 @@ mod spagom {
         Ok(())
     }
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
-        if args.build == true {
+        if args.build {
             info!("Running spago build...");
             build(cfg)?;
-        } else if args.spago == true {
+        } else if args.spago {
             info!("Running spago bundle...");
             bundle(cfg)?;
         }
@@ -276,25 +273,25 @@ mod css {
     pub fn out_file(cfg: &Config) -> String {
         format!(
             "{}/{}/{}/dist/{}.css",
-            &cfg.base.0, &cfg.ps_home.0, &cfg.pkg.0, &cfg.stem.0
+            cfg.base.0, cfg.ps_home.0, cfg.pkg.0, cfg.stem.0
         )
     }
 
     pub fn css_file_name(cfg: &Config) -> String {
         format!(
             "{}/{}/{}/{}",
-            &cfg.base.0, &cfg.css_home.0, &cfg.stem.0, &cfg.css_main.0
+            cfg.base.0, cfg.css_home.0, cfg.stem.0, cfg.css_main.0
         )
     }
 
     fn import_file_name(cfg: &Config, file_name: &str) -> String {
-        format!("{}/{}/{}.css", &cfg.base.0, &cfg.css_home.0, file_name)
+        format!("{}/{}/{}.css", cfg.base.0, cfg.css_home.0, file_name)
     }
 
     fn local_import_file_name(cfg: &Config, file_name: &str) -> String {
         format!(
             "{}/{}/{}/{}.css",
-            &cfg.base.0, &cfg.css_home.0, &cfg.stem.0, file_name
+            cfg.base.0, cfg.css_home.0, cfg.stem.0, file_name
         )
     }
     // fn first_word_is_import(s: &str) -> bool {
@@ -345,7 +342,7 @@ mod css {
 
     fn generate_css(cfg: &Config) -> Result<(), Box<dyn Error>> {
         let scss = css_file_name(cfg);
-        println!("scss file: {}", &scss);
+        println!("scss file: {}", scss);
         let scss = File::open(&scss)?; //.expect("file not found");
 
         let scss_lines: Vec<String> = BufReader::new(scss)
@@ -353,23 +350,23 @@ mod css {
             .map(|l| l.expect("could not read line"))
             .collect();
 
-        let mut out = File::create(&out_file(cfg))?;
+        let mut out = File::create(out_file(cfg))?;
 
         let mut imports_done: bool = false;
 
         for line in &scss_lines {
             let trimmed_line = line.trim();
             //println!("{}", line);
-            if imports_done == false {
+            if imports_done {
                 if trimmed_line.contains("IMPORTS_BEGIN") {
                     continue;
                 } else if trimmed_line.contains("IMPORTS_END") {
                     imports_done = true;
                     continue;
                 } else if trimmed_line.starts_with("import") {
-                    handle_import(&mut out, &trimmed_line, cfg)?;
+                    handle_import(&mut out, trimmed_line, cfg)?;
                 } else if trimmed_line.starts_with("local-import") {
-                    handle_local_import(&mut out, &trimmed_line, cfg)?;
+                    handle_local_import(&mut out, trimmed_line, cfg)?;
                 }
             } else {
                 writeln!(out, "{}", trimmed_line)?;
@@ -385,7 +382,7 @@ mod css {
         Ok(())
     }
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
-        if args.css == true {
+        if args.css {
             info!("Running css...");
             generate_css(cfg)?;
         }
@@ -416,14 +413,14 @@ mod thymeleaf {
     }
 
     pub fn tpl_target_file_name(cfg: &Config) -> String {
-        format!("{}/{}/index.html", &cfg.base.0, &cfg.tpl_target.0)
+        format!("{}/{}/index.html", cfg.base.0, cfg.tpl_target.0)
     }
 
     pub fn js_target_file_name(cfg: &Config, md5: &str) -> String {
         let stem = &cfg.stem.0;
         format!(
             "{}/{}/static/js/{}/{}-{}.js",
-            &cfg.base.0, &cfg.java_res_home.0, stem, stem, md5
+            cfg.base.0, cfg.java_res_home.0, stem, stem, md5
         )
     }
 
@@ -431,21 +428,21 @@ mod thymeleaf {
         let stem = &cfg.stem.0;
         format!(
             "{}/{}/static/css/{}/{}-{}.css",
-            &cfg.base.0, &cfg.java_res_home.0, stem, stem, md5
+            cfg.base.0, cfg.java_res_home.0, stem, stem, md5
         )
     }
 
     fn tpl_path(cfg: &Config) -> String {
-        format!("{}/{}", &cfg.base.0, &cfg.tpl_path.0)
+        format!("{}/{}", cfg.base.0, cfg.tpl_path.0)
     }
 
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
-        if args.thymeleaf == true {
+        if args.thymeleaf {
             let mut env = Environment::new();
 
             let tp = tpl_path(cfg);
 
-            info!("Templates {}", &tp);
+            info!("Templates {}", tp);
             env.set_loader(minijinja::path_loader(&tp));
 
             let spago_out = spagom::out_file(cfg, args.prod);
@@ -465,15 +462,15 @@ mod thymeleaf {
 
             let target_js = js_target_file_name(cfg, &md5_js);
 
-            info!("Copy {}\nto {}", &spago_out, &target_js);
+            info!("Copy {}\nto {}", spago_out, target_js);
 
-            let _ = fs::copy(&spago_out, &target_js);
+            let _ = fs::copy(spago_out, target_js);
 
             let target_css = css_target_file_name(cfg, &md5_css);
 
-            info!("Copy {}\nto {}", &css_out, &target_css);
+            info!("Copy {}\nto {}", css_out, target_css);
 
-            let _ = fs::copy(&css_out, &target_css);
+            let _ = fs::copy(&css_out, target_css);
         }
         Ok(())
     }
@@ -486,26 +483,26 @@ mod janet {
 
     fn js_target_file_name(cfg: &Config) -> String {
         let stem = &cfg.stem.0;
-        format!("{}/{}/{}.js", &cfg.base.0, &cfg.janet_res_home.0, stem)
+        format!("{}/{}/{}.js", cfg.base.0, cfg.janet_res_home.0, stem)
     }
 
     fn css_target_file_name(cfg: &Config) -> String {
         let stem = &cfg.stem.0;
-        format!("{}/{}/{}.css", &cfg.base.0, &cfg.janet_res_home.0, stem)
+        format!("{}/{}/{}.css", cfg.base.0, cfg.janet_res_home.0, stem)
     }
 
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
-        if args.janet == true {
+        if args.janet {
             let spago_out = spagom::out_file(cfg, args.prod);
             let target_js = js_target_file_name(cfg);
 
-            info!("Copy {}\nto {}", &spago_out, &target_js);
+            info!("Copy {}\nto {}", spago_out, target_js);
             let _ = fs::copy(&spago_out, &target_js);
 
             let css_out = css::out_file(cfg);
             let target_css = css_target_file_name(cfg);
 
-            info!("Copy {}\nto {}", &css_out, &target_css);
+            info!("Copy {}\nto {}", css_out, target_css);
             let _ = fs::copy(&css_out, &target_css);
         }
         Ok(())
@@ -519,15 +516,15 @@ mod parcel {
     use std::process::Command;
 
     pub fn ps_dist_file_name(cfg: &Config) -> String {
-        format!("{}/dist/{}.js", &cfg.pkg.0, &cfg.stem.0)
+        format!("{}/dist/{}.js", cfg.pkg.0, cfg.stem.0)
     }
 
     pub fn parcel_dist_dir(cfg: &Config) -> String {
-        format!("{}/prod/", &cfg.pkg.0)
+        format!("{}/prod/", cfg.pkg.0)
     }
 
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
-        if args.parcel == true {
+        if args.parcel {
             let ps_dist = ps_dist_file_name(cfg);
             let parcel_dist = parcel_dist_dir(cfg);
             let psh = spagom::purescript_home(cfg);
@@ -617,7 +614,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let args = Args::parse();
 
-    if args.multi == true {
+    if args.multi {
         run_multi_project(&args)?;
     } else {
         run_single_project(&args, &args.yaml)?;
@@ -630,13 +627,13 @@ fn run_single_project(args: &Args, yaml_str: &str) -> Result<(), Box<dyn Error>>
     //let config = parse_yaml(&args.yaml)?;
     let config = parse_yaml(yaml_str)?;
 
-    println!("{}", &config);
+    println!("{}", config);
 
-    spagom::run(&config, &args)?;
-    parcel::run(&config, &args)?;
-    css::run(&config, &args)?;
-    thymeleaf::run(&config, &args)?;
-    janet::run(&config, &args)?;
+    spagom::run(&config, args)?;
+    parcel::run(&config, args)?;
+    css::run(&config, args)?;
+    thymeleaf::run(&config, args)?;
+    janet::run(&config, args)?;
     Ok(())
 }
 
@@ -644,8 +641,8 @@ fn run_multi_project(args: &Args) -> Result<(), Box<dyn Error>> {
     let config = parse_multi_yaml(&args.yaml)?;
 
     for project in config.projects {
-        let base_project = format!("{}/{}", config.base.0, &project);
-        info!("Processing project: {}", &base_project);
+        let base_project = format!("{}/{}", config.base.0, project);
+        info!("Processing project: {}", base_project);
         run_single_project(args, &base_project)?;
     }
 
