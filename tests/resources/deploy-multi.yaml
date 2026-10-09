@@ -1,0 +1,5 @@
+base: /home/rcs/opt/klaxton/PhotoAppMVC/Purescript
+projects:
+  - report-app/deploy.yaml
+  - camera-app/deploy.yaml
+  - generator-app/deploy.yaml
