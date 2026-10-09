@@ -269,16 +269,16 @@ mod cssm {
 
     #[derive(Debug)]
     pub struct Css {
-        pub css_home: CssHome,
-        pub css_main: CssMain,
+        pub home: CssHome,
+        pub main: CssMain,
     }
 
     pub fn parse(doc: &Yaml) -> Result<Css, Box<dyn Error>> {
         let css_home = doc["css-home"].as_str().unwrap();
         let css_main = doc["css-main"].as_str().unwrap();
         let result = Css {
-            css_home: CssHome(String::from(css_home)),
-            css_main: CssMain(String::from(css_main)),
+            home: CssHome(String::from(css_home)),
+            main: CssMain(String::from(css_main)),
         };
         Ok(result)
     }
@@ -294,18 +294,18 @@ mod cssm {
     pub fn css_file_name(cfg: &Config) -> String {
         format!(
             "{}/{}/{}/{}",
-            cfg.base.0, cfg.css.css_home.0, cfg.spago.stem.0, cfg.css.css_main.0
+            cfg.base.0, cfg.css.home.0, cfg.spago.stem.0, cfg.css.main.0
         )
     }
 
     fn import_file_name(cfg: &Config, file_name: &str) -> String {
-        format!("{}/{}/{}.css", cfg.base.0, cfg.css.css_home.0, file_name)
+        format!("{}/{}/{}.css", cfg.base.0, cfg.css.home.0, file_name)
     }
 
     fn local_import_file_name(cfg: &Config, file_name: &str) -> String {
         format!(
             "{}/{}/{}/{}.css",
-            cfg.base.0, cfg.css.css_home.0, cfg.spago.stem.0, file_name
+            cfg.base.0, cfg.css.home.0, cfg.spago.stem.0, file_name
         )
     }
     // fn first_word_is_import(s: &str) -> bool {
@@ -762,9 +762,9 @@ mod tests {
             config.tpl.tpl_target.0
         );
 
-        assert_eq!("sass-src", config.css.css_home.0);
+        assert_eq!("sass-src", config.css.home.0);
 
-        assert_eq!("main.css", config.css.css_main.0);
+        assert_eq!("main.css", config.css.main.0);
         Ok(())
     }
 
@@ -776,8 +776,8 @@ mod tests {
             stem: Stem(String::from("report")),
         };
         let css = cssm::Css {
-            css_home: CssHome(String::from("sass-src")),
-            css_main: CssMain(String::from("main.css")),
+            home: CssHome(String::from("sass-src")),
+            main: CssMain(String::from("main.css")),
         };
         let tpl = thymeleaf::Thymeleaf {
             tpl: Tpl(String::from("index.html.tpl")),
