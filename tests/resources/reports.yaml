@@ -1,14 +1,14 @@
 ---
 # Config
 base: /home/rcs/opt/klaxton/PhotoAppMVC
-pkg: report-app
-ps-home: Purescript
-stem: report
 java-resources: src/main/resources
 janet-resources: janet/appwindow3/public
 ---
 # Spago
 module: ReportMain
+pkg: report-app
+ps-home: Purescript
+stem: report
 ---
 # Css
 css-home: sass-src

@@ -113,47 +113,32 @@ impl MultiConfig {
 #[derive(Debug)]
 struct Config {
     base: Base,
-    pkg: Pkg,
-    ps_home: PsHome,
-    stem: Stem,
     java_res_home: JavaResourceHome,
     janet_res_home: JanetResourceHome,
     spago: spagom::Spago,
-    tpl: Tpl,
-    tpl_path: TplPath,
-    tpl_target: TplTarget,
-    css_home: CssHome,
-    css_main: CssMain,
+    css: cssm::Css,
+    tpl: thymeleaf::Thymeleaf,
+    //tpl: Tpl,
+    //tpl_path: TplPath,
+    //tpl_target: TplTarget,
 }
 
 impl Config {
     pub fn new(
         base: Base,
-        pkg: Pkg,
-        ps_home: PsHome,
-        stem: Stem,
         java_res_home: JavaResourceHome,
         janet_res_home: JanetResourceHome,
         spago: spagom::Spago,
-        tpl: Tpl,
-        tpl_path: TplPath,
-        tpl_target: TplTarget,
-        css_home: CssHome,
-        css_main: CssMain,
+        css: cssm::Css,
+        tpl: thymeleaf::Thymeleaf,
     ) -> Self {
         Config {
             base,
-            pkg,
-            ps_home,
-            stem,
             java_res_home,
             janet_res_home,
             spago,
+            css,
             tpl,
-            tpl_path,
-            tpl_target,
-            css_home,
-            css_main,
         }
     }
 }
@@ -162,78 +147,89 @@ impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Config:\n\tbase: {:<30}\n\tpkg: {:<30}\n\tps_home: {:<30}\n\tstem: {:<30}\n\tjava_res_home: {:<30}\n\tjanet_res_home: {:<30}\n\ttpl: {:<30}\n\ttpl_path: {:<30}\n\ttpl_target: {:<30}\n\tcss_home: {:<30}\n\tcss_main: {:<30}",
-            self.base.0,
-            self.pkg.0,
-            self.ps_home.0,
-            self.stem.0,
-            self.java_res_home.0,
-            self.janet_res_home.0,
-            self.tpl.0,
-            self.tpl_path.0,
-            self.tpl_target.0,
-            self.css_home.0,
-            self.css_main.0
+            "demo" // "Config:\n\tbase: {:<30}\n\tpkg: {:<30}\n\tps_home: {:<30}\n\tstem: {:<30}\n\tjava_res_home: {:<30}\n\tjanet_res_home: {:<30}\n\ttpl: {:<30}\n\ttpl_path: {:<30}\n\ttpl_target: {:<30}\n\tcss_home: {:<30}\n\tcss_main: {:<30}",
+                   // self.base.0,
+                   // self.pkg.0,
+                   // self.ps_home.0,
+                   // self.stem.0,
+                   // self.java_res_home.0,
+                   // self.janet_res_home.0,
+                   // self.tpl.0,
+                   // self.tpl_path.0,
+                   // self.tpl_target.0,
+                   // self.css_home.0,
+                   // self.css_main.0
         )
     }
 }
 
 mod spagom {
-    use super::{Args, Config, Module};
+    use super::{Args, Config, Module, Pkg, PsHome, Stem};
     use log::info;
     use std::error::Error;
     use std::process::Command;
     use yaml_rust2::Yaml;
 
     pub fn out_file(cfg: &Config, is_prod: bool) -> String {
+        let spago = &cfg.spago;
         if is_prod {
             format!(
                 "{}/{}/{}/prod/{}.js",
-                cfg.base.0, cfg.ps_home.0, cfg.pkg.0, cfg.stem.0
+                cfg.base.0, spago.ps_home.0, spago.pkg.0, spago.stem.0
             )
         } else {
             format!(
                 "{}/{}/{}/dist/{}.js",
-                cfg.base.0, cfg.ps_home.0, cfg.pkg.0, cfg.stem.0
+                cfg.base.0, spago.ps_home.0, spago.pkg.0, spago.stem.0
             )
         }
     }
 
     pub fn bundle_out_file(cfg: &Config, is_prod: bool) -> String {
         if is_prod {
-            format!("prod/{}.js", cfg.stem.0)
+            format!("prod/{}.js", cfg.spago.stem.0)
         } else {
-            format!("dist/{}.js", cfg.stem.0)
+            format!("dist/{}.js", cfg.spago.stem.0)
         }
     }
 
     #[derive(Debug)]
     pub struct Spago {
         pub module: Module,
+        pub stem: Stem,
+        pub pkg: Pkg,
+        pub ps_home: PsHome,
     }
     pub fn parse(doc: &Yaml) -> Result<Spago, Box<dyn Error>> {
         let module = doc["module"].as_str().unwrap();
+        let ps_home = doc["ps-home"].as_str().unwrap();
+        let pkg = doc["pkg"].as_str().unwrap();
+        let stem = doc["stem"].as_str().unwrap();
+
         let result = Spago {
             module: Module(String::from(module)),
+            stem: Stem(String::from(stem)),
+            pkg: Pkg(String::from(pkg)),
+            ps_home: PsHome(String::from(ps_home)),
         };
         Ok(result)
     }
 
     pub fn purescript_home(cfg: &Config) -> String {
-        format!("{}/{}", cfg.base.0, cfg.ps_home.0)
+        format!("{}/{}", cfg.base.0, cfg.spago.ps_home.0)
     }
 
     pub fn bundle(cfg: &Config) -> Result<(), Box<dyn Error>> {
-        let s_cfg = &cfg.spago;
         let out = bundle_out_file(cfg, false);
         let psh = purescript_home(cfg);
+        let spago = &cfg.spago;
         Command::new("spago")
             .arg("bundle")
             .arg("--quiet")
             .arg("--package")
-            .arg(&cfg.pkg.0)
+            .arg(&spago.pkg.0)
             .arg("--module")
-            .arg(&s_cfg.module.0)
+            .arg(&spago.module.0)
             .arg("--outfile")
             .arg(&out)
             .current_dir(&psh)
@@ -245,7 +241,7 @@ mod spagom {
         Command::new("spago")
             .arg("build")
             .arg("--package")
-            .arg(&cfg.pkg.0)
+            .arg(&cfg.spago.pkg.0)
             .current_dir(&psh)
             .status()?;
         Ok(())
@@ -262,36 +258,54 @@ mod spagom {
     }
 }
 
-mod css {
-    use super::{Args, Config};
+mod cssm {
+    use super::{Args, Config, CssHome, CssMain};
     use log::info;
     use std::error::Error;
     use std::fs::File;
     use std::io::Write;
     use std::io::{BufRead, BufReader};
+    use yaml_rust2::Yaml;
+
+    #[derive(Debug)]
+    pub struct Css {
+        pub css_home: CssHome,
+        pub css_main: CssMain,
+    }
+
+    pub fn parse(doc: &Yaml) -> Result<Css, Box<dyn Error>> {
+        let css_home = doc["css-home"].as_str().unwrap();
+        let css_main = doc["css-main"].as_str().unwrap();
+        let result = Css {
+            css_home: CssHome(String::from(css_home)),
+            css_main: CssMain(String::from(css_main)),
+        };
+        Ok(result)
+    }
 
     pub fn out_file(cfg: &Config) -> String {
+        let spago_cfg = &cfg.spago;
         format!(
             "{}/{}/{}/dist/{}.css",
-            cfg.base.0, cfg.ps_home.0, cfg.pkg.0, cfg.stem.0
+            cfg.base.0, spago_cfg.ps_home.0, spago_cfg.pkg.0, spago_cfg.stem.0
         )
     }
 
     pub fn css_file_name(cfg: &Config) -> String {
         format!(
             "{}/{}/{}/{}",
-            cfg.base.0, cfg.css_home.0, cfg.stem.0, cfg.css_main.0
+            cfg.base.0, cfg.css.css_home.0, cfg.spago.stem.0, cfg.css.css_main.0
         )
     }
 
     fn import_file_name(cfg: &Config, file_name: &str) -> String {
-        format!("{}/{}/{}.css", cfg.base.0, cfg.css_home.0, file_name)
+        format!("{}/{}/{}.css", cfg.base.0, cfg.css.css_home.0, file_name)
     }
 
     fn local_import_file_name(cfg: &Config, file_name: &str) -> String {
         format!(
             "{}/{}/{}/{}.css",
-            cfg.base.0, cfg.css_home.0, cfg.stem.0, file_name
+            cfg.base.0, cfg.css.css_home.0, cfg.spago.stem.0, file_name
         )
     }
     // fn first_word_is_import(s: &str) -> bool {
@@ -391,14 +405,34 @@ mod css {
 }
 
 mod thymeleaf {
-    use super::{Args, Config, css, spagom};
+    use super::{Args, Config, Tpl, TplPath, TplTarget, cssm, spagom};
     //use md5::Digest;
     use log::info;
     use std::error::Error;
     use std::fs;
     use std::fs::File;
+    use yaml_rust2::Yaml;
 
     use minijinja::{Environment, context};
+
+    #[derive(Debug)]
+    pub struct Thymeleaf {
+        pub tpl: Tpl,
+        pub tpl_path: TplPath,
+        pub tpl_target: TplTarget,
+    }
+
+    pub fn parse(doc: &Yaml) -> Result<Thymeleaf, Box<dyn Error>> {
+        let tpl = doc["tpl"].as_str().unwrap();
+        let tpl_path = doc["tpl-path"].as_str().unwrap();
+        let tpl_target = doc["tpl-target"].as_str().unwrap();
+        let result = Thymeleaf {
+            tpl: Tpl(String::from(tpl)),
+            tpl_path: TplPath(String::from(tpl_path)),
+            tpl_target: TplTarget(String::from(tpl_target)),
+        };
+        Ok(result)
+    }
 
     fn calc_md5(path: &str) -> Result<String, Box<dyn Error>> {
         let contents = fs::read(path)?; //.expect("Failed to read file");
@@ -413,11 +447,11 @@ mod thymeleaf {
     }
 
     pub fn tpl_target_file_name(cfg: &Config) -> String {
-        format!("{}/{}/index.html", cfg.base.0, cfg.tpl_target.0)
+        format!("{}/{}/index.html", cfg.base.0, cfg.tpl.tpl_target.0)
     }
 
     pub fn js_target_file_name(cfg: &Config, md5: &str) -> String {
-        let stem = &cfg.stem.0;
+        let stem = &cfg.spago.stem.0;
         format!(
             "{}/{}/static/js/{}/{}-{}.js",
             cfg.base.0, cfg.java_res_home.0, stem, stem, md5
@@ -425,7 +459,7 @@ mod thymeleaf {
     }
 
     pub fn css_target_file_name(cfg: &Config, md5: &str) -> String {
-        let stem = &cfg.stem.0;
+        let stem = &cfg.spago.stem.0;
         format!(
             "{}/{}/static/css/{}/{}-{}.css",
             cfg.base.0, cfg.java_res_home.0, stem, stem, md5
@@ -433,7 +467,7 @@ mod thymeleaf {
     }
 
     fn tpl_path(cfg: &Config) -> String {
-        format!("{}/{}", cfg.base.0, cfg.tpl_path.0)
+        format!("{}/{}", cfg.base.0, cfg.tpl.tpl_path.0)
     }
 
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
@@ -446,12 +480,12 @@ mod thymeleaf {
             env.set_loader(minijinja::path_loader(&tp));
 
             let spago_out = spagom::out_file(cfg, args.prod);
-            let css_out = css::out_file(cfg);
+            let css_out = cssm::out_file(cfg);
 
             let md5_js = calc_md5(&spago_out)?;
             let md5_css = calc_md5(&css_out)?;
 
-            let template = env.get_template(&cfg.tpl.0).unwrap();
+            let template = env.get_template(&cfg.tpl.tpl.0).unwrap();
 
             let index_html = File::create(tpl_target_file_name(cfg))?;
 
@@ -476,18 +510,18 @@ mod thymeleaf {
     }
 }
 mod janet {
-    use super::{Args, Config, css, spagom};
+    use super::{Args, Config, cssm, spagom};
     use log::info;
     use std::error::Error;
     use std::fs;
 
     fn js_target_file_name(cfg: &Config) -> String {
-        let stem = &cfg.stem.0;
+        let stem = &cfg.spago.stem.0;
         format!("{}/{}/{}.js", cfg.base.0, cfg.janet_res_home.0, stem)
     }
 
     fn css_target_file_name(cfg: &Config) -> String {
-        let stem = &cfg.stem.0;
+        let stem = &cfg.spago.stem.0;
         format!("{}/{}/{}.css", cfg.base.0, cfg.janet_res_home.0, stem)
     }
 
@@ -499,7 +533,7 @@ mod janet {
             info!("Copy {}\nto {}", spago_out, target_js);
             let _ = fs::copy(&spago_out, &target_js);
 
-            let css_out = css::out_file(cfg);
+            let css_out = cssm::out_file(cfg);
             let target_css = css_target_file_name(cfg);
 
             info!("Copy {}\nto {}", css_out, target_css);
@@ -516,11 +550,11 @@ mod parcel {
     use std::process::Command;
 
     pub fn ps_dist_file_name(cfg: &Config) -> String {
-        format!("{}/dist/{}.js", cfg.pkg.0, cfg.stem.0)
+        format!("{}/dist/{}.js", cfg.spago.pkg.0, cfg.spago.stem.0)
     }
 
     pub fn parcel_dist_dir(cfg: &Config) -> String {
-        format!("{}/prod/", cfg.pkg.0)
+        format!("{}/prod/", cfg.spago.pkg.0)
     }
 
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
@@ -556,32 +590,27 @@ fn parse_yaml(yaml: &str) -> Result<Config, Box<dyn Error>> {
     let tpl_doc = &docs[3];
 
     let spago = spagom::parse(spago_doc)?;
+    let css = cssm::parse(css_doc)?;
+    let tpl = thymeleaf::parse(tpl_doc)?;
 
     let base = cfg_doc["base"].as_str().unwrap();
-    let ps_home = cfg_doc["ps-home"].as_str().unwrap();
-    let pkg = cfg_doc["pkg"].as_str().unwrap();
-    let stem = cfg_doc["stem"].as_str().unwrap();
     let java_res = cfg_doc["java-resources"].as_str().unwrap();
     let janet_res = cfg_doc["janet-resources"].as_str().unwrap();
-    let tpl = tpl_doc["tpl"].as_str().unwrap();
-    let tpl_path = tpl_doc["tpl-path"].as_str().unwrap();
-    let tpl_target = tpl_doc["tpl-target"].as_str().unwrap();
-    let css_home = css_doc["css-home"].as_str().unwrap();
-    let css_main = css_doc["css-main"].as_str().unwrap();
+
+    // let tpl = tpl_doc["tpl"].as_str().unwrap();
+    // let tpl_path = tpl_doc["tpl-path"].as_str().unwrap();
+    // let tpl_target = tpl_doc["tpl-target"].as_str().unwrap();
 
     let result = Config::new(
         Base(String::from(base)),
-        Pkg(String::from(pkg)),
-        PsHome(String::from(ps_home)),
-        Stem(String::from(stem)),
         JavaResourceHome(String::from(java_res)),
         JanetResourceHome(String::from(janet_res)),
         spago,
-        Tpl(String::from(tpl)),
-        TplPath(String::from(tpl_path)),
-        TplTarget(String::from(tpl_target)),
-        CssHome(String::from(css_home)),
-        CssMain(String::from(css_main)),
+        css,
+        tpl,
+        // Tpl(String::from(tpl)),
+        // TplPath(String::from(tpl_path)),
+        // TplTarget(String::from(tpl_target)),
     );
 
     Ok(result)
@@ -631,7 +660,7 @@ fn run_single_project(args: &Args, yaml_str: &str) -> Result<(), Box<dyn Error>>
 
     spagom::run(&config, args)?;
     parcel::run(&config, args)?;
-    css::run(&config, args)?;
+    cssm::run(&config, args)?;
     thymeleaf::run(&config, args)?;
     janet::run(&config, args)?;
     Ok(())
@@ -679,7 +708,7 @@ mod tests {
     #[test]
     fn test_css_file_name() -> Result<(), Box<dyn Error>> {
         let cfg = test_config();
-        let result = css::css_file_name(&cfg);
+        let result = cssm::css_file_name(&cfg);
         assert_eq!(
             "/home/rcs/opt/klaxton/PhotoAppMVC/sass-src/report/main.css",
             result
@@ -719,41 +748,49 @@ mod tests {
     #[test]
     fn test_parse_yaml() -> Result<(), Box<dyn Error>> {
         let config = parse_yaml("tests/resources/reports.yaml")?;
-        let spago = config.spago;
+        let spago = &config.spago;
 
         assert_eq!("src/main/resources", config.java_res_home.0);
-        assert_eq!("report-app", config.pkg.0);
-        assert_eq!("report", config.stem.0);
+        assert_eq!("report-app", spago.pkg.0);
+        assert_eq!("report", spago.stem.0);
         assert_eq!("ReportMain", spago.module.0);
-        assert_eq!("Purescript", config.ps_home.0);
-        assert_eq!("index.html.tpl", config.tpl.0);
-        assert_eq!("Purescript/report-app/tpl", config.tpl_path.0);
-        assert_eq!("src/main/resources/templates/report", config.tpl_target.0);
+        assert_eq!("Purescript", spago.ps_home.0);
+        assert_eq!("index.html.tpl", config.tpl.tpl.0);
+        assert_eq!("Purescript/report-app/tpl", config.tpl.tpl_path.0);
+        assert_eq!(
+            "src/main/resources/templates/report",
+            config.tpl.tpl_target.0
+        );
 
-        assert_eq!("sass-src", config.css_home.0);
+        assert_eq!("sass-src", config.css.css_home.0);
 
-        assert_eq!("main.css", config.css_main.0);
+        assert_eq!("main.css", config.css.css_main.0);
         Ok(())
     }
 
     fn test_config() -> Config {
         let spago = spagom::Spago {
             module: Module(String::from("module")),
+            pkg: Pkg(String::from("pkg")),
+            ps_home: PsHome(String::from("ps_home")),
+            stem: Stem(String::from("report")),
+        };
+        let css = cssm::Css {
+            css_home: CssHome(String::from("sass-src")),
+            css_main: CssMain(String::from("main.css")),
+        };
+        let tpl = thymeleaf::Thymeleaf {
+            tpl: Tpl(String::from("index.html.tpl")),
+            tpl_path: TplPath(String::from("Purescript/report-app/tpl")),
+            tpl_target: TplTarget(String::from("src/main/resources/templates/report")),
         };
         Config::new(
             Base(String::from("/home/rcs/opt/klaxton/PhotoAppMVC")),
-            Pkg(String::from("pkg")),
-            PsHome(String::from("ps_home")),
-            Stem(String::from("report")),
             JavaResourceHome(String::from("src/main/resources")),
             JanetResourceHome(String::from("janet/appwindow3/public")),
             spago,
-            Tpl(String::from("index.html.tpl")),
-            TplPath(String::from("Purescript/report-app/tpl")),
-            TplTarget(String::from("src/main/resources/templates/report")),
-            CssHome(String::from("sass-src")),
-            CssMain(String::from("main.css")),
-            //Parcel(String::from("parcel")),
+            css,
+            tpl,
         )
     }
 }
