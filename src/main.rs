@@ -319,7 +319,7 @@ mod cssm {
     ) -> Result<(), Box<dyn Error>> {
         let file_name = yaml_line.split_whitespace().nth(1).unwrap();
         let file_name = import_file_name(cfg, file_name);
-        println!("{}", file_name);
+        info!("import: {}", file_name);
         writeln!(f, "/* {} */", file_name)?;
         let import = File::open(file_name)?;
         let lines: Vec<String> = BufReader::new(import)
@@ -340,7 +340,7 @@ mod cssm {
     ) -> Result<(), Box<dyn Error>> {
         let file_name = yaml_line.split_whitespace().nth(1).unwrap();
         let file_name = local_import_file_name(cfg, file_name);
-        println!("{}", file_name);
+        info!("local_import: {}", file_name);
         writeln!(f, "/* {} */", file_name)?;
         let import = File::open(file_name)?;
         let lines: Vec<String> = BufReader::new(import)
@@ -356,7 +356,7 @@ mod cssm {
 
     fn generate_css(cfg: &Config) -> Result<(), Box<dyn Error>> {
         let scss = css_file_name(cfg);
-        println!("scss file: {}", scss);
+        info!("scss file: {}", scss);
         let scss = File::open(&scss)?; //.expect("file not found");
 
         let scss_lines: Vec<String> = BufReader::new(scss)
@@ -371,7 +371,7 @@ mod cssm {
         for line in &scss_lines {
             let trimmed_line = line.trim();
             //println!("{}", line);
-            if imports_done {
+            if !imports_done {
                 if trimmed_line.contains("IMPORTS_BEGIN") {
                     continue;
                 } else if trimmed_line.contains("IMPORTS_END") {
