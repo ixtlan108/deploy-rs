@@ -60,6 +60,10 @@ struct Args {
     /// Multi-projects
     #[arg(short, long, default_value_t = false)]
     multi: bool,
+
+    /// Git mv css and js files
+    #[arg(long, default_value_t = false)]
+    gitmv: bool,
 }
 
 #[derive(Debug)]
@@ -404,9 +408,20 @@ mod cssm {
     }
 }
 
+fn calc_md5(path: &str) -> Result<String, Box<dyn Error>> {
+    let contents = fs::read(path)?; //.expect("Failed to read file");
+    let digest = md5::compute(&contents);
+    let short = format!("{:x}", digest)[..8].to_string();
+    Ok(short)
+
+    //println!("short hash: {}", &format!("{:x}", digest)[..8]);
+    //println!("{:x}\t{}", digest, path);
+    // let digest = md5::compute(b"hello");
+    // let short = format!("{:x}", digest)[..8].to_string();
+}
+
 mod thymeleaf {
-    use super::{Args, Config, Tpl, TplPath, TplTarget, cssm, spagom};
-    //use md5::Digest;
+    use super::{Args, Config, Tpl, TplPath, TplTarget, calc_md5, cssm, spagom};
     use log::info;
     use std::error::Error;
     use std::fs;
@@ -432,18 +447,6 @@ mod thymeleaf {
             tpl_target: TplTarget(String::from(tpl_target)),
         };
         Ok(result)
-    }
-
-    fn calc_md5(path: &str) -> Result<String, Box<dyn Error>> {
-        let contents = fs::read(path)?; //.expect("Failed to read file");
-        let digest = md5::compute(&contents);
-        let short = format!("{:x}", digest)[..8].to_string();
-        Ok(short)
-
-        //println!("short hash: {}", &format!("{:x}", digest)[..8]);
-        //println!("{:x}\t{}", digest, path);
-        // let digest = md5::compute(b"hello");
-        // let short = format!("{:x}", digest)[..8].to_string();
     }
 
     pub fn tpl_target_file_name(cfg: &Config) -> String {
@@ -480,9 +483,9 @@ mod thymeleaf {
             env.set_loader(minijinja::path_loader(&tp));
 
             let spago_out = spagom::out_file(cfg, args.prod);
-            let css_out = cssm::out_file(cfg);
-
             let md5_js = calc_md5(&spago_out)?;
+
+            let css_out = cssm::out_file(cfg);
             let md5_css = calc_md5(&css_out)?;
 
             let template = env.get_template(&cfg.tpl.tpl.0).unwrap();
@@ -509,6 +512,124 @@ mod thymeleaf {
         Ok(())
     }
 }
+
+mod git {
+    use crate::calc_md5;
+
+    use super::{Args, Config, cssm, spagom, thymeleaf};
+    use std::error::Error;
+    use std::fs;
+    use std::path::Path;
+    //use std::fs::File;
+    use std::process::Command;
+
+    fn css_git_dir(cfg: &Config) -> String {
+        let stem = &cfg.spago.stem.0;
+        format!("{}/{}/static/css/{}", cfg.base.0, cfg.java_res_home.0, stem)
+    }
+
+    fn css_git_mv_target(cfg: &Config, md5: &str) -> String {
+        let stem = &cfg.spago.stem.0;
+        format!("{}-{}.css", stem, md5)
+    }
+
+    fn handle_css(cfg: &Config) -> Result<(), Box<dyn Error>> {
+        let my_curr_dir = css_git_dir(cfg);
+
+        let output = Command::new("git")
+            .current_dir(&my_curr_dir)
+            .arg("ls-files")
+            .output()
+            .expect("Fail");
+
+        if output.status.success() {
+            let old_css = String::from_utf8_lossy(&output.stdout);
+            log::info!("git ls-files: {}", old_css);
+
+            let old_css = old_css.trim();
+
+            let css_out = cssm::out_file(cfg);
+            let css_md5 = calc_md5(&css_out)?;
+            log::info!("css file: {} - md5: {}", css_out, css_md5);
+
+            if old_css.contains(&css_md5) {
+                log::info!("No changes to css file: {}", old_css);
+            } else {
+                log::info!("Css has changed: {} == {}", old_css, css_md5);
+                let target_css = thymeleaf::css_target_file_name(cfg, &css_md5);
+                let path = Path::new(&target_css);
+
+                if !path.exists() {
+                    println!("{} does not exist!", target_css);
+                } else {
+                    let mut target_css_x = target_css.clone();
+                    target_css_x.push_str(".x");
+
+                    let from = Path::new(&target_css);
+                    let to = Path::new(&target_css_x);
+
+                    fs::rename(from, to)?;
+
+                    let gmt = css_git_mv_target(cfg, &css_md5);
+                    log::info!("Git mv target: {}", gmt);
+
+                    Command::new("git")
+                        .current_dir(&my_curr_dir)
+                        .arg("mv")
+                        .arg(old_css)
+                        .arg(gmt)
+                        .status()?;
+                }
+            }
+        } else {
+            let stderr_str = String::from_utf8_lossy(&output.stderr);
+            log::error!("Git command failed: {}", stderr_str);
+        }
+        Ok(())
+    }
+
+    fn js_git_dir(cfg: &Config) -> String {
+        let stem = &cfg.spago.stem.0;
+        format!("{}/{}/static/js/{}", cfg.base.0, cfg.java_res_home.0, stem)
+    }
+
+    fn js_git_mv_target(cfg: &Config, md5: &str) -> String {
+        let stem = &cfg.spago.stem.0;
+        format!("{}-{}.js", stem, md5)
+    }
+
+    fn handle_js(cfg: &Config, is_prod: bool) -> Result<(), Box<dyn Error>> {
+        let my_curr_dir = js_git_dir(cfg);
+
+        let output = Command::new("git")
+            .current_dir(&my_curr_dir)
+            .arg("ls-files")
+            .output()
+            .expect("Fail");
+
+        if output.status.success() {
+            let old_js = String::from_utf8_lossy(&output.stdout);
+            log::info!("git ls-files: {}", old_js);
+            let old_js = old_js.trim();
+            let js_out = spagom::out_file(cfg, is_prod);
+            let js_md5 = calc_md5(&js_out)?;
+            log::info!("js file: {} - md5: {}", js_out, js_md5);
+        } else {
+            let stderr_str = String::from_utf8_lossy(&output.stderr);
+            log::error!("Git command failed: {}", stderr_str);
+        }
+        Ok(())
+    }
+
+    pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
+        if args.gitmv {
+            handle_css(cfg)?;
+            handle_js(cfg, args.prod)?;
+        }
+        Ok(())
+    }
+}
+
 mod janet {
     use super::{Args, Config, cssm, spagom};
     use log::info;
@@ -663,6 +784,7 @@ fn run_single_project(args: &Args, yaml_str: &str) -> Result<(), Box<dyn Error>>
     cssm::run(&config, args)?;
     thymeleaf::run(&config, args)?;
     janet::run(&config, args)?;
+    git::run(&config, args)?;
     Ok(())
 }
 
