@@ -614,6 +614,38 @@ mod git {
             let js_out = spagom::out_file(cfg, is_prod);
             let js_md5 = calc_md5(&js_out)?;
             log::info!("js file: {} - md5: {}", js_out, js_md5);
+
+            if old_js.contains(&js_md5) {
+                log::info!("No changes to js file: {}", old_js);
+            } else {
+                log::info!("Js has changed: {} == {}", old_js, js_md5);
+
+                let target_js = thymeleaf::js_target_file_name(cfg, &js_md5);
+
+                let path = Path::new(&target_js);
+
+                if !path.exists() {
+                    println!("{} does not exist!", target_js);
+                } else {
+                    let mut target_js_x = target_js.clone();
+                    target_js_x.push_str(".x");
+
+                    let from = Path::new(&target_js);
+                    let to = Path::new(&target_js_x);
+
+                    fs::rename(from, to)?;
+
+                    let gmt = js_git_mv_target(cfg, &js_md5);
+                    log::info!("Git mv target: {}", gmt);
+
+                    Command::new("git")
+                        .current_dir(&my_curr_dir)
+                        .arg("mv")
+                        .arg(old_js)
+                        .arg(gmt)
+                        .status()?;
+                }
+            }
         } else {
             let stderr_str = String::from_utf8_lossy(&output.stderr);
             log::error!("Git command failed: {}", stderr_str);
