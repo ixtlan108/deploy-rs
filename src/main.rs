@@ -579,6 +579,8 @@ mod git {
                         .arg(old_css)
                         .arg(gmt)
                         .status()?;
+
+                    fs::rename(to, from)?;
                 }
             }
         } else {
@@ -644,6 +646,8 @@ mod git {
                         .arg(old_js)
                         .arg(gmt)
                         .status()?;
+
+                    fs::rename(to, from)?;
                 }
             }
         } else {
@@ -656,7 +660,7 @@ mod git {
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
         if args.gitmv {
             handle_css(cfg)?;
-            handle_js(cfg, args.prod)?;
+            //handle_js(cfg, args.prod)?;
         }
         Ok(())
     }
@@ -817,6 +821,7 @@ fn run_single_project(args: &Args, yaml_str: &str) -> Result<(), Box<dyn Error>>
     thymeleaf::run(&config, args)?;
     janet::run(&config, args)?;
     git::run(&config, args)?;
+
     Ok(())
 }
 
