@@ -660,7 +660,7 @@ mod git {
     pub fn run(cfg: &Config, args: &Args) -> Result<(), Box<dyn Error>> {
         if args.gitmv {
             handle_css(cfg)?;
-            //handle_js(cfg, args.prod)?;
+            handle_js(cfg, args.prod)?;
         }
         Ok(())
     }
